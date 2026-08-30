@@ -34,9 +34,11 @@ The current fixture identity and session adapters are process-lifetime in-memory
 - Runtime configuration comes from the external `config-repo` through Config Server.
 - `auth.jwt.secret` is a base64 runtime secret with at least 32 decoded bytes.
 - `auth.identity.fixture.password-hash` is a BCrypt hash; raw passwords are never stored.
-- `auth.session.policy` is `REVOKE_PREVIOUS` by default and may be set to `ALLOW_MULTIPLE`.
+- `auth.session.policy` defaults conservatively to `REVOKE_PREVIOUS` and may be set to `ALLOW_MULTIPLE`.
 - The normal SIT access path is API Gateway; direct service access is for controlled internal verification only.
 - The container runs as numeric non-root user/group `10001:10001`.
+
+Session policy is applied at session creation. Under `REVOKE_PREVIOUS`, prior active sessions for the same username are revoked atomically before the new session is stored; validation rejects their tokens through server-side session state. `ALLOW_MULTIPLE` intentionally preserves prior active sessions.
 
 ## Commands
 

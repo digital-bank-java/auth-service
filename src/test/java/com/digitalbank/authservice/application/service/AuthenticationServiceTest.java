@@ -3,6 +3,7 @@ package com.digitalbank.authservice.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.digitalbank.authservice.adapter.out.session.InMemorySessionRepository;
 import com.digitalbank.authservice.application.port.in.LoginCommand;
 import com.digitalbank.authservice.application.port.in.LogoutCommand;
 import com.digitalbank.authservice.application.port.in.ValidateSessionCommand;
@@ -118,6 +119,54 @@ class AuthenticationServiceTest {
                 .isInstanceOf(AuthenticationFailedException.class);
     }
 
+    @Test
+    void secondLoginRevokesFirstSessionAndRejectsItsToken() {
+        var sessions = new InMemorySessionRepository();
+        var tokens = new SessionTokenPort();
+        var service = serviceFor(
+                username -> Optional.of(new StoredCredential(username, "hash")),
+                (rawPassword, passwordHash) -> true,
+                sessions,
+                tokens,
+                new AuthSessionProperties(SingleSessionPolicy.REVOKE_PREVIOUS, Duration.ofMinutes(30)));
+        var validation = new SessionValidationService(sessions, tokens, CLOCK);
+
+        var first = service.login(new LoginCommand("alice", "password"));
+        var second = service.login(new LoginCommand("alice", "password"));
+
+        assertThatThrownBy(() -> validation.validate(new ValidateSessionCommand(first.accessToken())))
+                .isInstanceOf(AuthenticationFailedException.class);
+        assertThat(validation
+                        .validate(new ValidateSessionCommand(second.accessToken()))
+                        .sessionId())
+                .isEqualTo(second.sessionId());
+    }
+
+    @Test
+    void allowMultiplePolicyKeepsBothLoginTokensValid() {
+        var sessions = new InMemorySessionRepository();
+        var tokens = new SessionTokenPort();
+        var service = serviceFor(
+                username -> Optional.of(new StoredCredential(username, "hash")),
+                (rawPassword, passwordHash) -> true,
+                sessions,
+                tokens,
+                new AuthSessionProperties(SingleSessionPolicy.ALLOW_MULTIPLE, Duration.ofMinutes(30)));
+        var validation = new SessionValidationService(sessions, tokens, CLOCK);
+
+        var first = service.login(new LoginCommand("alice", "password"));
+        var second = service.login(new LoginCommand("alice", "password"));
+
+        assertThat(validation
+                        .validate(new ValidateSessionCommand(first.accessToken()))
+                        .sessionId())
+                .isEqualTo(first.sessionId());
+        assertThat(validation
+                        .validate(new ValidateSessionCommand(second.accessToken()))
+                        .sessionId())
+                .isEqualTo(second.sessionId());
+    }
+
     private AuthenticationService serviceFor(CredentialStore credentials, PasswordHasher passwordHasher) {
         return serviceFor(credentials, passwordHasher, new RecordingSessionRepository(), new RecordingJwtTokenPort());
     }
@@ -127,13 +176,21 @@ class AuthenticationServiceTest {
             PasswordHasher passwordHasher,
             SessionRepository sessions,
             JwtTokenPort tokens) {
-        return new AuthenticationService(
+        return serviceFor(
                 credentials,
                 passwordHasher,
                 sessions,
                 tokens,
-                CLOCK,
                 new AuthSessionProperties(SingleSessionPolicy.REVOKE_PREVIOUS, Duration.ofMinutes(30)));
+    }
+
+    private AuthenticationService serviceFor(
+            CredentialStore credentials,
+            PasswordHasher passwordHasher,
+            SessionRepository sessions,
+            JwtTokenPort tokens,
+            AuthSessionProperties sessionProperties) {
+        return new AuthenticationService(credentials, passwordHasher, sessions, tokens, CLOCK, sessionProperties);
     }
 
     private static final class RecordingSessionRepository implements SessionRepository {
@@ -179,6 +236,24 @@ class AuthenticationServiceTest {
         public JwtClaims verify(String token) {
             return new JwtClaims(
                     "alice", lastSession.id(), "issuer", NOW, NOW.plus(Duration.ofMinutes(30)), activeClaim);
+        }
+    }
+
+    private static final class SessionTokenPort implements JwtTokenPort {
+
+        private final Map<String, JwtClaims> claimsByToken = new HashMap<>();
+        private int sequence;
+
+        @Override
+        public String issue(String subject, Session session) {
+            var token = "token-" + ++sequence;
+            claimsByToken.put(token, new JwtClaims(subject, session.id(), "issuer", NOW, session.expiresAt(), true));
+            return token;
+        }
+
+        @Override
+        public JwtClaims verify(String token) {
+            return claimsByToken.get(token);
         }
     }
 }

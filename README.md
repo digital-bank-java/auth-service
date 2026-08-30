@@ -12,7 +12,7 @@ This slice provides an internal, bounded authentication foundation:
 - container and Helm packaging for local Kubernetes SIT;
 - `POST /api/v1/auth/login` with validated credentials and signed JWT issuance;
 - `POST /api/v1/auth/logout` with server-side, idempotent session revocation;
-- configurable `REVOKE_PREVIOUS` or `ALLOW_MULTIPLE` session policy;
+- configurable `REVOKE_PREVIOUS` or `ALLOW_MULTIPLE` session policy, defaulting conservatively to `REVOKE_PREVIOUS`;
 - Maven verification with Spotless, JaCoCo, Surefire, and Failsafe.
 
 The current identity and session adapters are in-memory fixtures. They preserve state for the process lifetime but are not restart- or multi-replica-durable. A Postgres/Redis persistence slice is required before production rollout.
@@ -45,6 +45,8 @@ auth.identity.fixture.password-hash=${AUTH_FIXTURE_PASSWORD_HASH:}
 ```
 
 The formal environments are `sit`, `uat`, and `prod`. Local Kubernetes SIT uses the `sit` profile. `auth.jwt.secret` must be a base64 value decoding to at least 32 bytes and must come from Config Server or an approved secret mechanism. The fixture adapter accepts only a BCrypt password hash; it never stores a raw password. Do not commit credentials, signing keys, tokens, or customer data.
+
+`auth.session.policy` is enforced when a session is created. With the default `REVOKE_PREVIOUS` policy, a successful login revokes all previously active sessions for the same username before the new session is stored. A token from an invalidated session is rejected by server-side session validation even when its JWT signature and `active` claim are still valid. `ALLOW_MULTIPLE` is an explicit opt-out that keeps multiple active sessions for the same username.
 
 For Helm deployments, set `secrets.enabled=true` and provision the configured Secret before rollout when the JWT secret and fixture hash are delivered through Kubernetes. With the default `false`, both values must be supplied by the approved Config Server/secret integration.
 
