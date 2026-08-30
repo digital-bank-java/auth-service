@@ -25,7 +25,8 @@ class JjwtTokenAdapterTest {
         var session = Session.start(
                 SessionId.newId(), "alice@example.com", CREATED_AT, CREATED_AT.plus(30, ChronoUnit.MINUTES));
 
-        var claims = adapter.verify(adapter.issue(session.username(), session));
+        var token = adapter.issue(session.username(), session);
+        var claims = adapter.verify(token);
 
         assertThat(claims)
                 .isEqualTo(new JwtClaims(
@@ -33,7 +34,20 @@ class JjwtTokenAdapterTest {
                         session.id(),
                         "digital-bank-auth",
                         CREATED_AT.truncatedTo(ChronoUnit.SECONDS),
-                        session.expiresAt().truncatedTo(ChronoUnit.SECONDS)));
+                        session.expiresAt().truncatedTo(ChronoUnit.SECONDS),
+                        true));
+    }
+
+    @Test
+    void revokedSessionCannotIssueAnActiveToken() {
+        var adapter = new JjwtTokenAdapter(new AuthJwtProperties(SECRET, "digital-bank-auth"));
+        var session = Session.start(
+                        SessionId.newId(), "alice@example.com", CREATED_AT, CREATED_AT.plus(30, ChronoUnit.MINUTES))
+                .revoke();
+
+        assertThatThrownBy(() -> adapter.issue(session.username(), session))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("session must be active");
     }
 
     @Test

@@ -35,6 +35,9 @@ public class SessionValidationService implements ValidateSessionInputPort {
     }
 
     private boolean isValid(JwtClaims claims, String username, boolean active) {
-        return active && username.equals(claims.subject()) && claims.expiresAt().isAfter(clock.instant());
+        return claims.active()
+                && active
+                && username.equals(claims.subject())
+                && claims.expiresAt().isAfter(clock.instant());
     }
 }

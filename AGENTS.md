@@ -14,7 +14,7 @@ This repository contains the deployable scaffold plus a bounded internal login/l
 - Container and Helm packaging for local Kubernetes SIT.
 - Internal login and logout HTTP adapters with RFC 7807 errors.
 - Hexagonal application/domain ports for credentials, hashing, JWTs, and sessions.
-- Signed JWTs with session IDs and server-side revocation.
+- Signed JWTs with session IDs, an active issuance-state claim, and server-side revocation.
 
 ## Deferred Scope
 
