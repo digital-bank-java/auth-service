@@ -1,29 +1,32 @@
 # Authentication and Session Service
 
-Authentication and session service scaffold for the Digital Bank Java platform. The service is built with Spring Boot 4.0.7 and Java 21 and is prepared for the future authentication delivery slices.
+Authentication and session service for the Digital Bank Java platform. The service is built with Spring Boot 4.0.7 and Java 21.
 
 ## Current Scope
 
-This slice establishes a deployable service boundary only:
+This slice provides an internal, bounded authentication foundation:
 
 - Config Client integration for externalized runtime configuration;
 - Actuator health, liveness, and readiness endpoints;
 - service-owned OpenAPI metadata;
 - container and Helm packaging for local Kubernetes SIT;
+- `POST /api/v1/auth/login` with validated credentials and signed JWT issuance;
+- `POST /api/v1/auth/logout` with server-side, idempotent session revocation;
+- configurable `REVOKE_PREVIOUS` or `ALLOW_MULTIPLE` session policy;
 - Maven verification with Spotless, JaCoCo, Surefire, and Failsafe.
 
-Login, logout, credential verification, token issuance, session persistence, MFA, step-up authorization, Kafka events, and database persistence are intentionally future work. No authentication business endpoint is exposed by this scaffold.
+The current identity and session adapters are in-memory fixtures. They preserve state for the process lifetime but are not restart- or multi-replica-durable. A Postgres/Redis persistence slice is required before production rollout.
 
 ## Architecture Boundary
 
-When business behavior is introduced, the service will follow the organization hexagonal architecture:
+The service follows the organization hexagonal architecture:
 
 ```text
 HTTP/API Gateway -> inbound adapters -> input ports -> application/domain
                                                     -> output ports -> infrastructure adapters
 ```
 
-Authentication policy remains in the application and domain layers. Controllers and future messaging adapters will translate transport data only. Persistence, token providers, and external identity integrations will remain outbound adapters.
+Authentication policy remains in the application and domain layers. The controller translates transport data only. Credential lookup, password hashing, JWT operations, and session storage are outbound ports with replaceable adapters. The session validation port requires both a valid signed token and active server-side state.
 
 ## Runtime Configuration
 
@@ -32,9 +35,20 @@ The service reads runtime configuration from the external Config Server:
 ```properties
 spring.application.name=auth-service
 spring.config.import=configserver:${CONFIG_SERVER_URL:http://localhost:8888}
+
+auth.session.policy=REVOKE_PREVIOUS
+auth.session.ttl=PT30M
+auth.jwt.issuer=digital-bank-auth
+auth.jwt.secret=${AUTH_JWT_SECRET:}
+auth.identity.fixture.username=${AUTH_FIXTURE_USERNAME:}
+auth.identity.fixture.password-hash=${AUTH_FIXTURE_PASSWORD_HASH:}
 ```
 
-The formal environments are `sit`, `uat`, and `prod`. Local Kubernetes SIT uses the `sit` profile. Real credentials, signing keys, tokens, and passwords must be provided by the deployment secret mechanism and must never be committed here.
+The formal environments are `sit`, `uat`, and `prod`. Local Kubernetes SIT uses the `sit` profile. `auth.jwt.secret` must be a base64 value decoding to at least 32 bytes and must come from Config Server or an approved secret mechanism. The fixture adapter accepts only a BCrypt password hash; it never stores a raw password. Do not commit credentials, signing keys, tokens, or customer data.
+
+For Helm deployments, set `secrets.enabled=true` and provision the configured Secret before rollout when the JWT secret and fixture hash are delivered through Kubernetes. With the default `false`, both values must be supplied by the approved Config Server/secret integration.
+
+The current `config-repo` checkout has no `auth-service` service files. Before SIT deployment, add the service defaults and profile override there, including `server.port: 8086`, the non-secret issuer/policy/TTL values, and the approved runtime secret delivery contract. This PR does not modify the separate config repository.
 
 ## Prerequisites
 
@@ -64,7 +78,9 @@ Run the complete Maven quality gate:
 The current integration tests start the application on a random port and verify:
 
 - `/actuator/health` returns `200` and `UP`;
-- `/v3/api-docs` returns the explicit service title, internal description, and contract version `1.0.0`.
+- `/v3/api-docs` returns the explicit service title, internal description, contract version `1.0.0`, and both auth paths;
+- login returns a JWT with `sub`, `sid`, `iss`, `iat`, and `exp` claims;
+- logout revokes the session server-side and is idempotent.
 
 Validate the Helm chart:
 
@@ -86,6 +102,37 @@ CONFIG_SERVER_URL=http://localhost:8888
 ```
 
 Port-forward Config Server from the `digital-bank-sit` namespace before starting the process. The service listens on port `8086` when that value is supplied by Config Server or an IDE run configuration. Direct workstation access is a debugging technique; normal integrated API testing goes through the API Gateway.
+
+For service-local fixture testing, provide temporary values such as `AUTH_JWT_SECRET`, `AUTH_FIXTURE_USERNAME`, and `AUTH_FIXTURE_PASSWORD_HASH`. Use a generated BCrypt hash and never put the source password in configuration or logs.
+
+## Authentication API
+
+The endpoints are service-local and intentionally have no API Gateway route in this PR.
+
+### Login
+
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{
+  "username": "alice@example.com",
+  "password": "<fixture-password>"
+}
+```
+
+The `200 OK` response contains `accessToken`, `tokenType`, `sessionId`, and `expiresAt`. The JWT is signed and includes `sub`, `sid`, `iss`, `iat`, and `exp`; `sid` equals the response `sessionId`.
+
+### Logout
+
+```http
+POST /api/v1/auth/logout
+Authorization: Bearer <access-token>
+```
+
+Logout returns `204 No Content`. Repeating the request with the same valid token returns `204` again. A valid token alone is not sufficient for future protected-service authorization after its session is revoked; consumers must use the session validation application port until a later gateway/service authorization slice exists.
+
+Errors use RFC 7807 `ProblemDetail`: validation failures are `400` with `type` ending in `validation-error`; invalid credentials are `401` with `type` ending in `authentication-failed`; malformed, missing, expired, or revoked bearer tokens are `401` with `type` ending in `invalid-token`.
 
 ## Container
 
@@ -126,6 +173,12 @@ GET http://localhost:8086/v3/api-docs
 
 The centralized internal documentation path will be added to API Gateway only when a reviewed service contract and access policy are available.
 
+Insomnia request definitions are documented in [`docs/insomnia/auth-service.md`](docs/insomnia/auth-service.md).
+
+## Explicit Boundaries
+
+MFA, step-up authorization, refresh-token rotation, external identity providers, customer provisioning, account lockout/rate limiting, audit events, JWT key rotation/JWKS, production session persistence, and API Gateway authentication filters are deferred follow-up slices. Do not infer production readiness from the in-memory fixture adapter.
+
 ## Development Workflow
 
 Use a dedicated branch and pull request for every change. Before opening a pull request:
@@ -137,4 +190,4 @@ helm lint helm --strict --values helm/values-sit.yaml
 git diff --check
 ```
 
-Relevant organization story: [`.github#45`](https://github.com/digital-bank-java/.github/issues/45).
+Relevant organization stories: [`.github#45`](https://github.com/digital-bank-java/.github/issues/45), [`.github#46`](https://github.com/digital-bank-java/.github/issues/46), and [`.github#47`](https://github.com/digital-bank-java/.github/issues/47). The implementation is stacked on [auth-service bootstrap PR #1](https://github.com/digital-bank-java/auth-service/pull/1).

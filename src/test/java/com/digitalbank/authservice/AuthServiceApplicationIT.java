@@ -46,6 +46,18 @@ class AuthServiceApplicationIT {
                 .isEqualTo("Digital Bank Authentication and Session Service API");
         assertThat(document.path("info").path("version").asText()).isEqualTo("1.0.0");
         assertThat(document.path("info").path("description").asText()).contains("Internal authentication");
+        assertThat(document.path("paths")
+                        .path("/api/v1/auth/login")
+                        .path("post")
+                        .path("responses")
+                        .has("200"))
+                .isTrue();
+        assertThat(document.path("paths")
+                        .path("/api/v1/auth/logout")
+                        .path("post")
+                        .path("responses")
+                        .has("204"))
+                .isTrue();
     }
 
     private HttpResponse<String> get(String path) throws Exception {
