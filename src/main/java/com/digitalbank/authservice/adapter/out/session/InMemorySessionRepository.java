@@ -6,6 +6,7 @@ import com.digitalbank.authservice.domain.model.Session;
 import com.digitalbank.authservice.domain.model.SessionId;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 public class InMemorySessionRepository implements SessionRepository {
@@ -14,6 +15,8 @@ public class InMemorySessionRepository implements SessionRepository {
 
     @Override
     public synchronized Session open(Session session, SingleSessionPolicy policy) {
+        Objects.requireNonNull(session, "session must not be null");
+        Objects.requireNonNull(policy, "policy must not be null");
         if (policy == SingleSessionPolicy.REVOKE_PREVIOUS) {
             sessions.replaceAll((id, existing) -> {
                 if (existing.username().equals(session.username()) && existing.isActiveAt(session.createdAt())) {

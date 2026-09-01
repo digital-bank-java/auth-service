@@ -9,7 +9,7 @@ public record AuthSessionProperties(SingleSessionPolicy policy, Duration ttl) {
 
     public AuthSessionProperties {
         if (policy == null) {
-            throw new IllegalArgumentException("auth.session.policy must be configured");
+            policy = SingleSessionPolicy.REVOKE_PREVIOUS;
         }
         if (ttl == null || ttl.isZero() || ttl.isNegative()) {
             throw new IllegalArgumentException("auth.session.ttl must be positive");

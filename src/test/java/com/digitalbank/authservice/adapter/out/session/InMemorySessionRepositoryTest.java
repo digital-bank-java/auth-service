@@ -1,6 +1,7 @@
 package com.digitalbank.authservice.adapter.out.session;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.digitalbank.authservice.application.port.out.SingleSessionPolicy;
 import com.digitalbank.authservice.domain.model.Session;
@@ -41,6 +42,15 @@ class InMemorySessionRepositoryTest {
                 .isEqualTo("ACTIVE");
         assertThat(repository.findById(latest.id()).orElseThrow().status().name())
                 .isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void nullPolicyIsRejectedInsteadOfFailingOpenToMultipleSessions() {
+        var repository = new InMemorySessionRepository();
+
+        assertThatNullPointerException()
+                .isThrownBy(() -> repository.open(session("alice"), null))
+                .withMessage("policy must not be null");
     }
 
     @Test
