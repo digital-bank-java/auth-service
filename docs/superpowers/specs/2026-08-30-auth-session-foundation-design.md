@@ -49,7 +49,7 @@ The fixture identity adapter stores only a configured password hash. Password ma
 
 ## JWT Contract
 
-The runtime JWT adapter signs HMAC tokens with a base64-encoded secret supplied by runtime configuration. Tokens contain `sub`, `sid`, `iss`, `iat`, and `exp` claims. The secret must be at least 256 bits and is never committed.
+The runtime JWT adapter signs HMAC tokens with a base64-encoded secret supplied by runtime configuration. Tokens contain `sub`, `sid`, `active`, `iss`, `iat`, and `exp` claims. `active` is a signed issuance-time state claim and must be true for validation. The authoritative current state remains the server-side session record, so revocation invalidates a token even though its signed `active` claim cannot change. The secret must be at least 256 bits and is never committed.
 
 JWT issuance and verification are outbound ports. Session validation requires both a valid signed token and an active, unexpired session record, so token expiry is not treated as logout.
 

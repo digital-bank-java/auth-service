@@ -35,6 +35,7 @@ class AuthApiIT {
         assertThat(payload.path("sub").asText()).isEqualTo("alice@example.com");
         assertThat(payload.path("sid").asText())
                 .isEqualTo(body.path("sessionId").asText());
+        assertThat(payload.path("active").asBoolean()).isTrue();
         assertThat(payload.path("iss").asText()).isEqualTo("digital-bank-auth-test");
         assertThat(payload.path("iat").asLong()).isPositive();
         assertThat(payload.path("exp").asLong())

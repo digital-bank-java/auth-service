@@ -104,6 +104,20 @@ class AuthenticationServiceTest {
                 .isInstanceOf(AuthenticationFailedException.class);
     }
 
+    @Test
+    void inactiveJwtClaimFailsValidationEvenWhenSessionIsActive() {
+        var sessions = new RecordingSessionRepository();
+        var tokenPort = new RecordingJwtTokenPort();
+        var session = Session.start(SessionId.newId(), "alice", NOW, NOW.plus(Duration.ofMinutes(30)));
+        sessions.open(session, SingleSessionPolicy.ALLOW_MULTIPLE);
+        tokenPort.activeClaim = false;
+        tokenPort.issue("alice", session);
+        var service = new SessionValidationService(sessions, tokenPort, CLOCK);
+
+        assertThatThrownBy(() -> service.validate(new ValidateSessionCommand("token")))
+                .isInstanceOf(AuthenticationFailedException.class);
+    }
+
     private AuthenticationService serviceFor(CredentialStore credentials, PasswordHasher passwordHasher) {
         return serviceFor(credentials, passwordHasher, new RecordingSessionRepository(), new RecordingJwtTokenPort());
     }
@@ -153,6 +167,7 @@ class AuthenticationServiceTest {
     private static final class RecordingJwtTokenPort implements JwtTokenPort {
 
         private Session lastSession;
+        private boolean activeClaim = true;
 
         @Override
         public String issue(String subject, Session session) {
@@ -162,7 +177,8 @@ class AuthenticationServiceTest {
 
         @Override
         public JwtClaims verify(String token) {
-            return new JwtClaims("alice", lastSession.id(), "issuer", NOW, NOW.plus(Duration.ofMinutes(30)));
+            return new JwtClaims(
+                    "alice", lastSession.id(), "issuer", NOW, NOW.plus(Duration.ofMinutes(30)), activeClaim);
         }
     }
 }

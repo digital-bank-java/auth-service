@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Never store raw passwords; credential state contains only password hashes.
-- JWTs must contain `sub`, `sid`, `iss`, `iat`, and `exp` and must be signed with a runtime-injected base64 secret of at least 256 bits.
+- JWTs must contain `sub`, `sid`, `active`, `iss`, `iat`, and `exp` and must be signed with a runtime-injected base64 secret of at least 256 bits.
 - Logout must revoke server-side session state and be idempotent for a valid bearer token.
 - `REVOKE_PREVIOUS` is the default session policy; `ALLOW_MULTIPLE` is the opt-out.
 - No API Gateway route, MFA, step-up, refresh rotation, external identity provider, provisioning, or production persistence is added.

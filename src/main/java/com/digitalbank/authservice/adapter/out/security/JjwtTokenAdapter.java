@@ -6,6 +6,7 @@ import com.digitalbank.authservice.configuration.AuthJwtProperties;
 import com.digitalbank.authservice.domain.exception.InvalidTokenException;
 import com.digitalbank.authservice.domain.model.Session;
 import com.digitalbank.authservice.domain.model.SessionId;
+import com.digitalbank.authservice.domain.model.SessionStatus;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -25,9 +26,13 @@ public class JjwtTokenAdapter implements JwtTokenPort {
 
     @Override
     public String issue(String subject, Session session) {
+        if (session.status() != SessionStatus.ACTIVE) {
+            throw new IllegalArgumentException("session must be active");
+        }
         return Jwts.builder()
                 .subject(subject)
                 .claim("sid", session.id().value().toString())
+                .claim("active", true)
                 .issuer(properties.issuer())
                 .issuedAt(Date.from(session.createdAt()))
                 .expiration(Date.from(session.expiresAt()))
@@ -48,7 +53,13 @@ public class JjwtTokenAdapter implements JwtTokenPort {
             var sessionId = claims.get("sid", String.class);
             var issuedAt = claims.getIssuedAt();
             var expiresAt = claims.getExpiration();
-            if (subject == null || subject.isBlank() || sessionId == null || issuedAt == null || expiresAt == null) {
+            var active = claims.get("active", Boolean.class);
+            if (subject == null
+                    || subject.isBlank()
+                    || sessionId == null
+                    || issuedAt == null
+                    || expiresAt == null
+                    || active == null) {
                 throw new InvalidTokenException();
             }
             return new JwtClaims(
@@ -56,7 +67,8 @@ public class JjwtTokenAdapter implements JwtTokenPort {
                     new SessionId(java.util.UUID.fromString(sessionId)),
                     claims.getIssuer(),
                     issuedAt.toInstant(),
-                    expiresAt.toInstant());
+                    expiresAt.toInstant(),
+                    active);
         } catch (InvalidTokenException exception) {
             throw exception;
         } catch (Exception exception) {

@@ -79,7 +79,7 @@ The current integration tests start the application on a random port and verify:
 
 - `/actuator/health` returns `200` and `UP`;
 - `/v3/api-docs` returns the explicit service title, internal description, contract version `1.0.0`, and both auth paths;
-- login returns a JWT with `sub`, `sid`, `iss`, `iat`, and `exp` claims;
+- login returns a JWT with signed `sub`, `sid`, `active`, `iss`, `iat`, and `exp` claims;
 - logout revokes the session server-side and is idempotent.
 
 Validate the Helm chart:
