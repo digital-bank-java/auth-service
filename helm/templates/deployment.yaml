@@ -30,6 +30,18 @@ spec:
               value: {{ .Values.runtime.profile | quote }}
             - name: CONFIG_SERVER_URL
               value: {{ .Values.runtime.configServerUrl | quote }}
+            {{- if .Values.secrets.enabled }}
+            - name: AUTH_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.name | quote }}
+                  key: {{ .Values.secrets.keys.jwtSecret | quote }}
+            - name: AUTH_FIXTURE_PASSWORD_HASH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.name | quote }}
+                  key: {{ .Values.secrets.keys.fixturePasswordHash | quote }}
+            {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
