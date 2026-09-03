@@ -13,6 +13,13 @@ runtime:
   profile: default
   configServerUrl: http://config-server:8888
 
+secrets:
+  enabled: false
+  name: auth-service-secrets
+  keys:
+    jwtSecret: jwt-secret
+    fixturePasswordHash: fixture-password-hash
+
 service:
   type: ClusterIP
   port: 8086

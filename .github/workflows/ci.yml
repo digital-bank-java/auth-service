@@ -118,6 +118,12 @@ jobs:
                       "source": {
                           "server.port": 8086,
                           "digital-bank.service.name": "auth-service",
+                          "auth.jwt.issuer": "digital-bank-auth-ci",
+                          "auth.jwt.secret": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+                          "auth.session.policy": "REVOKE_PREVIOUS",
+                          "auth.session.ttl": "PT30M",
+                          "auth.identity.fixture.username": "ci@example.com",
+                          "auth.identity.fixture.password-hash": "$2y$10$GTVETCbk6H2ppZUO090OxOARCHKcXq.aLjCoRDdvE0QDEERTGn3rm",
                       },
                   }
               ],
