@@ -91,7 +91,7 @@ jobs:
         shell: bash
         run: |
           cleanup() {
-            docker rm --force auth-service-ci > /dev/null 2>&1 || true
+            docker rm --force auth-service-ci auth-postgres-ci > /dev/null 2>&1 || true
             if [[ -n "${mock_server_pid:-}" ]]; then
               kill "${mock_server_pid}" > /dev/null 2>&1 || true
             fi
@@ -157,10 +157,36 @@ jobs:
           done
 
           docker run --detach \
+            --name auth-postgres-ci \
+            --network host \
+            --env POSTGRES_DB=auth_service \
+            --env POSTGRES_USER=postgres \
+            --env POSTGRES_PASSWORD=postgres \
+            postgres:16-alpine
+
+          postgres_ready=false
+          for attempt in {1..30}; do
+            if docker exec auth-postgres-ci \
+              pg_isready --host 127.0.0.1 --port 5432 --username postgres --dbname auth_service > /dev/null 2>&1; then
+              postgres_ready=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [[ "${postgres_ready}" != "true" ]]; then
+            docker logs auth-postgres-ci
+            exit 1
+          fi
+
+          docker run --detach \
             --name auth-service-ci \
             --network host \
             --env CONFIG_SERVER_URL=http://127.0.0.1:8888 \
             --env SPRING_PROFILES_ACTIVE=sit \
+            --env SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:5432/auth_service \
+            --env SPRING_DATASOURCE_USERNAME=postgres \
+            --env SPRING_DATASOURCE_PASSWORD=postgres \
             digital-bank-java/auth-service:ci
 
           ready=false

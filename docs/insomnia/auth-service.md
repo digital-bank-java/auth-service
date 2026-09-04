@@ -38,4 +38,4 @@ Expected response: `204 No Content`. Repeating this request verifies idempotent 
 
 ## Setup Boundary
 
-The fixture identity adapter requires a runtime BCrypt hash through `AUTH_FIXTURE_PASSWORD_HASH`; it never stores the source password. The session adapter is in-memory for this foundation and is not restart- or multi-replica-durable. Configure the approved Secret mechanism and the future production persistence slice before SIT/UAT/production rollout.
+The fixture identity adapter requires a runtime username and BCrypt hash through the approved Config Server/Secret mechanism; it never stores the source password. Session state is persisted in PostgreSQL through Flyway and remains available across service restarts and replicas. Provision the existing `postgres` Secret before SIT rollout.

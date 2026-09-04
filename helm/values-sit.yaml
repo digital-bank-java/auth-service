@@ -2,6 +2,10 @@ runtime:
   profile: sit
   configServerUrl: http://config-server:8888
 
+database:
+  url: jdbc:postgresql://postgres:5432/auth_service
+  secretName: postgres
+
 # Enable this only when the named Secret is provisioned by the SIT secret workflow.
 secrets:
   enabled: true

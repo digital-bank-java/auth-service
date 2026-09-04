@@ -13,9 +13,10 @@ This slice provides an internal, bounded authentication foundation:
 - `POST /api/v1/auth/login` with validated credentials and signed JWT issuance;
 - `POST /api/v1/auth/logout` with server-side, idempotent session revocation;
 - configurable `REVOKE_PREVIOUS` or `ALLOW_MULTIPLE` session policy, defaulting conservatively to `REVOKE_PREVIOUS`;
+- PostgreSQL-backed session persistence with Flyway migrations, durable token lookup, and replica-safe same-user session policy;
 - Maven verification with Spotless, JaCoCo, Surefire, and Failsafe.
 
-The current identity and session adapters are in-memory fixtures. They preserve state for the process lifetime but are not restart- or multi-replica-durable. A Postgres/Redis persistence slice is required before production rollout.
+The fixture identity adapter is still configuration-backed and is not a customer identity store. Session state is persisted in PostgreSQL and is durable across restarts and service replicas.
 
 ## Architecture Boundary
 
@@ -45,13 +46,15 @@ auth.identity.fixture.username=${AUTH_FIXTURE_USERNAME:}
 auth.identity.fixture.password-hash=${AUTH_FIXTURE_PASSWORD_HASH:}
 ```
 
+The Helm deployment supplies `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD` from the service database and the existing SIT `postgres` Secret. Hibernate schema generation is disabled; Flyway owns the `auth_sessions` schema.
+
 The formal environments are `sit`, `uat`, and `prod`. Local Kubernetes SIT uses the `sit` profile. `auth.jwt.secret` must be a base64 value decoding to at least 32 bytes and must come from Config Server or an approved secret mechanism. The fixture adapter accepts only a BCrypt password hash; it never stores a raw password. Do not commit credentials, signing keys, tokens, or customer data.
 
 `auth.session.policy` is enforced when a session is created. With the default `REVOKE_PREVIOUS` policy, a successful login revokes all previously active sessions for the same username before the new session is stored. A token from an invalidated session is rejected by server-side session validation even when its JWT signature and `active` claim are still valid. `ALLOW_MULTIPLE` is an explicit opt-out that keeps multiple active sessions for the same username.
 
-For Helm deployments, set `secrets.enabled=true` and provision the configured Secret before rollout when the JWT secret and fixture hash are delivered through Kubernetes. With the default `false`, both values must be supplied by the approved Config Server/secret integration.
+For Helm deployments, provision the existing `postgres` Secret before rollout. Set `secrets.enabled=true` and provision the configured Auth Secret when the JWT secret and fixture hash are delivered through Kubernetes. With the default `false`, those auth values must be supplied by the approved Config Server/secret integration.
 
-The current `config-repo` checkout has no `auth-service` service files. Before SIT deployment, add the service defaults and profile override there, including `server.port: 8086`, the non-secret issuer/policy/TTL values, and the approved runtime secret delivery contract. This PR does not modify the separate config repository.
+The related Config Repo change [PR #32](https://github.com/digital-bank-java/config-repo/pull/32) supplies the non-secret Auth defaults/profile and shared SIT JWT contract. This PR does not modify the separate config repository.
 
 ## Prerequisites
 
@@ -83,7 +86,8 @@ The current integration tests start the application on a random port and verify:
 - `/actuator/health` returns `200` and `UP`;
 - `/v3/api-docs` returns the explicit service title, internal description, contract version `1.0.0`, and both auth paths;
 - login returns a JWT with signed `sub`, `sid`, `active`, `iss`, `iat`, and `exp` claims, plus the configured space-delimited `scope` claim when scopes are configured;
-- logout revokes the session server-side and is idempotent.
+- logout revokes the session server-side and is idempotent;
+- Flyway creates the session table, and concurrent `REVOKE_PREVIOUS` opens leave only one session active.
 
 Validate the Helm chart:
 
@@ -124,7 +128,7 @@ Content-Type: application/json
 }
 ```
 
-The `200 OK` response contains `accessToken`, `tokenType`, `sessionId`, and `expiresAt`. The JWT is signed and includes `sub`, `sid`, `iss`, `iat`, and `exp`; `sid` equals the response `sessionId`.
+The `200 OK` response contains `accessToken`, `tokenType`, `sessionId`, and `expiresAt`. The JWT is signed and includes `sub`, `sid`, `iss`, `iat`, and `exp`, plus the configured space-delimited `scope` claim when scopes are configured; `sid` equals the response `sessionId`.
 
 ### Logout
 
@@ -180,7 +184,7 @@ Insomnia request definitions are documented in [`docs/insomnia/auth-service.md`]
 
 ## Explicit Boundaries
 
-MFA, step-up authorization, refresh-token rotation, external identity providers, customer provisioning, account lockout/rate limiting, audit events, JWT key rotation/JWKS, production session persistence, and API Gateway authentication filters are deferred follow-up slices. Do not infer production readiness from the in-memory fixture adapter.
+MFA, step-up authorization, refresh-token rotation, external identity providers, customer provisioning, account lockout/rate limiting, audit events, JWT key rotation/JWKS, and API Gateway authentication filters are deferred follow-up slices. The fixture identity adapter is not a substitute for customer identity integration.
 
 ## Development Workflow
 
