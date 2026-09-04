@@ -8,9 +8,12 @@ import com.digitalbank.authservice.configuration.AuthJwtProperties;
 import com.digitalbank.authservice.domain.exception.InvalidTokenException;
 import com.digitalbank.authservice.domain.model.Session;
 import com.digitalbank.authservice.domain.model.SessionId;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class JjwtTokenAdapterTest {
@@ -21,7 +24,7 @@ class JjwtTokenAdapterTest {
 
     @Test
     void issuedTokenContainsSignedSessionClaims() {
-        var adapter = new JjwtTokenAdapter(new AuthJwtProperties(SECRET, "digital-bank-auth"));
+        var adapter = new JjwtTokenAdapter(new AuthJwtProperties(SECRET, "digital-bank-auth", List.of()));
         var session = Session.start(
                 SessionId.newId(), "alice@example.com", CREATED_AT, CREATED_AT.plus(30, ChronoUnit.MINUTES));
 
@@ -40,7 +43,7 @@ class JjwtTokenAdapterTest {
 
     @Test
     void revokedSessionCannotIssueAnActiveToken() {
-        var adapter = new JjwtTokenAdapter(new AuthJwtProperties(SECRET, "digital-bank-auth"));
+        var adapter = new JjwtTokenAdapter(new AuthJwtProperties(SECRET, "digital-bank-auth", List.of()));
         var session = Session.start(
                         SessionId.newId(), "alice@example.com", CREATED_AT, CREATED_AT.plus(30, ChronoUnit.MINUTES))
                 .revoke();
@@ -52,15 +55,34 @@ class JjwtTokenAdapterTest {
 
     @Test
     void rejectsTokenSignedWithAnotherSecret() {
-        var adapter = new JjwtTokenAdapter(new AuthJwtProperties(SECRET, "digital-bank-auth"));
+        var adapter = new JjwtTokenAdapter(new AuthJwtProperties(SECRET, "digital-bank-auth", List.of()));
         var otherAdapter = new JjwtTokenAdapter(new AuthJwtProperties(
                 Base64.getEncoder().encodeToString("abcdef0123456789abcdef0123456789".getBytes()),
-                "digital-bank-auth"));
+                "digital-bank-auth",
+                List.of()));
         var session = Session.start(
                 SessionId.newId(), "alice@example.com", CREATED_AT, CREATED_AT.plus(30, ChronoUnit.MINUTES));
 
         var token = otherAdapter.issue(session.username(), session);
 
         assertThatThrownBy(() -> adapter.verify(token)).isInstanceOf(InvalidTokenException.class);
+    }
+
+    @Test
+    void issuedTokenContainsConfiguredScopes() {
+        var properties =
+                new AuthJwtProperties(SECRET, "digital-bank-auth", List.of("mfa.internal", "payment.internal"));
+        var adapter = new JjwtTokenAdapter(properties);
+        var session = Session.start(
+                SessionId.newId(), "alice@example.com", CREATED_AT, CREATED_AT.plus(30, ChronoUnit.MINUTES));
+
+        var token = adapter.issue(session.username(), session);
+        var claims = Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(SECRET)))
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+
+        assertThat(claims.get("scope", String.class)).isEqualTo("mfa.internal payment.internal");
     }
 }

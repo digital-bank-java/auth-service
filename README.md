@@ -40,6 +40,7 @@ auth.session.policy=REVOKE_PREVIOUS
 auth.session.ttl=PT30M
 auth.jwt.issuer=digital-bank-auth
 auth.jwt.secret=${AUTH_JWT_SECRET:}
+auth.jwt.scopes=${AUTH_JWT_SCOPES:}
 auth.identity.fixture.username=${AUTH_FIXTURE_USERNAME:}
 auth.identity.fixture.password-hash=${AUTH_FIXTURE_PASSWORD_HASH:}
 ```
@@ -81,7 +82,7 @@ The current integration tests start the application on a random port and verify:
 
 - `/actuator/health` returns `200` and `UP`;
 - `/v3/api-docs` returns the explicit service title, internal description, contract version `1.0.0`, and both auth paths;
-- login returns a JWT with signed `sub`, `sid`, `active`, `iss`, `iat`, and `exp` claims;
+- login returns a JWT with signed `sub`, `sid`, `active`, `iss`, `iat`, and `exp` claims, plus the configured space-delimited `scope` claim when scopes are configured;
 - logout revokes the session server-side and is idempotent.
 
 Validate the Helm chart:
@@ -141,7 +142,7 @@ Errors use RFC 7807 `ProblemDetail`: validation failures are `400` with `type` e
 Build the image with the repository naming convention:
 
 ```bash
-docker build -t digital-bank-java/auth-service:0.0.1 .
+docker build -t digital-bank-java/auth-service:0.0.2 .
 ```
 
 The runtime image uses the non-root numeric user/group `10001:10001`, a read-only root filesystem-compatible layout, and exposes port `8086`.

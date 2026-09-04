@@ -12,6 +12,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.util.Base64;
 import java.util.Date;
+import java.util.List;
 import javax.crypto.SecretKey;
 
 public class JjwtTokenAdapter implements JwtTokenPort {
@@ -29,15 +30,17 @@ public class JjwtTokenAdapter implements JwtTokenPort {
         if (session.status() != SessionStatus.ACTIVE) {
             throw new IllegalArgumentException("session must be active");
         }
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(subject)
                 .claim("sid", session.id().value().toString())
                 .claim("active", true)
                 .issuer(properties.issuer())
                 .issuedAt(Date.from(session.createdAt()))
-                .expiration(Date.from(session.expiresAt()))
-                .signWith(signingKey)
-                .compact();
+                .expiration(Date.from(session.expiresAt()));
+        if (!properties.scopes().isEmpty()) {
+            builder.claim("scope", String.join(" ", properties.scopes()));
+        }
+        return builder.signWith(signingKey).compact();
     }
 
     @Override
@@ -54,6 +57,7 @@ public class JjwtTokenAdapter implements JwtTokenPort {
             var issuedAt = claims.getIssuedAt();
             var expiresAt = claims.getExpiration();
             var active = claims.get("active", Boolean.class);
+            var scopes = parseScopes(claims.get("scope", String.class));
             if (subject == null
                     || subject.isBlank()
                     || sessionId == null
@@ -68,11 +72,19 @@ public class JjwtTokenAdapter implements JwtTokenPort {
                     claims.getIssuer(),
                     issuedAt.toInstant(),
                     expiresAt.toInstant(),
-                    active);
+                    active,
+                    scopes);
         } catch (InvalidTokenException exception) {
             throw exception;
         } catch (Exception exception) {
             throw new InvalidTokenException(exception);
         }
+    }
+
+    private static List<String> parseScopes(String scopeClaim) {
+        if (scopeClaim == null || scopeClaim.isBlank()) {
+            return List.of();
+        }
+        return List.of(scopeClaim.trim().split("\\s+"));
     }
 }
