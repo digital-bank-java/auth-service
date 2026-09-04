@@ -30,6 +30,24 @@ spec:
               value: {{ .Values.runtime.profile | quote }}
             - name: CONFIG_SERVER_URL
               value: {{ .Values.runtime.configServerUrl | quote }}
+            - name: SPRING_DATASOURCE_URL
+              value: {{ .Values.database.url | quote }}
+            - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+              value: {{ .Values.database.driverClassName | quote }}
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.secretName | quote }}
+                  key: {{ .Values.database.usernameKey | quote }}
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.secretName | quote }}
+                  key: {{ .Values.database.passwordKey | quote }}
+            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+              value: {{ .Values.database.hibernateDdlAuto | quote }}
+            - name: SPRING_JPA_OPEN_IN_VIEW
+              value: {{ .Values.database.openInView | quote }}
             {{- if .Values.secrets.enabled }}
             - name: AUTH_JWT_SECRET
               valueFrom:
