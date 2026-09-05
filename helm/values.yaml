@@ -27,6 +27,7 @@ secrets:
   name: auth-service-secrets
   keys:
     jwtSecret: jwt-secret
+    fixtureUsername: fixture-username
     fixturePasswordHash: fixture-password-hash
 
 service:

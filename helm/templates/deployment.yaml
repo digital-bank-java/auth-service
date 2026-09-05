@@ -54,6 +54,11 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.name | quote }}
                   key: {{ .Values.secrets.keys.jwtSecret | quote }}
+            - name: AUTH_FIXTURE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.name | quote }}
+                  key: {{ .Values.secrets.keys.fixtureUsername | quote }}
             - name: AUTH_FIXTURE_PASSWORD_HASH
               valueFrom:
                 secretKeyRef:
