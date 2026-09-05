@@ -198,3 +198,8 @@ git diff --check
 ```
 
 Relevant organization stories: [`.github#45`](https://github.com/digital-bank-java/.github/issues/45), [`.github#46`](https://github.com/digital-bank-java/.github/issues/46), and [`.github#47`](https://github.com/digital-bank-java/.github/issues/47). The implementation is stacked on [auth-service bootstrap PR #1](https://github.com/digital-bank-java/auth-service/pull/1).
+
+## Operational Logging
+
+The service emits one-line ECS JSON console events and propagates the bounded
+`X-Correlation-ID` boundary defined in the organization [structured logging and redaction contract](https://github.com/digital-bank-java/.github/blob/main/docs/structured-logging-and-redaction.md). Passwords, credentials, tokens, session identifiers, and identity data are not logged.
