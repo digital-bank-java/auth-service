@@ -52,7 +52,7 @@ The formal environments are `sit`, `uat`, and `prod`. Local Kubernetes SIT uses 
 
 `auth.session.policy` is enforced when a session is created. With the default `REVOKE_PREVIOUS` policy, a successful login revokes all previously active sessions for the same username before the new session is stored. A token from an invalidated session is rejected by server-side session validation even when its JWT signature and `active` claim are still valid. `ALLOW_MULTIPLE` is an explicit opt-out that keeps multiple active sessions for the same username.
 
-For Helm deployments, provision the existing `postgres` Secret before rollout. Set `secrets.enabled=true` and provision the configured Auth Secret when the JWT secret and fixture hash are delivered through Kubernetes. With the default `false`, those auth values must be supplied by the approved Config Server/secret integration.
+For Helm deployments, provision the existing `postgres` Secret before rollout. Set `secrets.enabled=true` and provision the configured `auth-service-secrets` Secret with these keys: `jwt-secret` for the signing secret, `fixture-username` for the synthetic fixture identifier, and `fixture-password-hash` for the BCrypt hash. The fixture username is an identifier used only for controlled test authentication; it must never be a raw password, token, or other secret. The password key must contain only a BCrypt hash, never the source password. With the default `false`, those auth values must be supplied by the approved Config Server/secret integration.
 
 The related Config Repo change [PR #32](https://github.com/digital-bank-java/config-repo/pull/32) supplies the non-secret Auth defaults/profile and shared SIT JWT contract. This PR does not modify the separate config repository.
 
@@ -167,6 +167,8 @@ kubectl rollout status deployment/auth-service \
   --namespace digital-bank-sit \
   --timeout=180s
 ```
+
+When `secrets.enabled=true`, the Secret named by `secrets.name` must provide the configured keys under `secrets.keys`: `jwt-secret`, `fixture-username`, and `fixture-password-hash`. `fixture-username` is a synthetic fixture identifier, never a raw password or token; `fixture-password-hash` must remain a BCrypt hash.
 
 The service is a `ClusterIP` workload. It is not directly exposed outside the cluster by this chart. Add API Gateway routing only in a separately tracked platform configuration change after the authentication contract and security policy exist.
 
