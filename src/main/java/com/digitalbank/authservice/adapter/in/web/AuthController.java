@@ -4,6 +4,8 @@ import com.digitalbank.authservice.application.port.in.LoginCommand;
 import com.digitalbank.authservice.application.port.in.LoginInputPort;
 import com.digitalbank.authservice.application.port.in.LogoutCommand;
 import com.digitalbank.authservice.application.port.in.LogoutInputPort;
+import com.digitalbank.authservice.application.port.in.ValidateSessionCommand;
+import com.digitalbank.authservice.application.port.in.ValidateSessionInputPort;
 import com.digitalbank.authservice.domain.exception.InvalidTokenException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -16,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -29,10 +32,15 @@ class AuthController {
 
     private final LoginInputPort loginInputPort;
     private final LogoutInputPort logoutInputPort;
+    private final ValidateSessionInputPort validateSessionInputPort;
 
-    AuthController(LoginInputPort loginInputPort, LogoutInputPort logoutInputPort) {
+    AuthController(
+            LoginInputPort loginInputPort,
+            LogoutInputPort logoutInputPort,
+            ValidateSessionInputPort validateSessionInputPort) {
         this.loginInputPort = loginInputPort;
         this.logoutInputPort = logoutInputPort;
+        this.validateSessionInputPort = validateSessionInputPort;
     }
 
     @PostMapping(
@@ -72,11 +80,28 @@ class AuthController {
                             mediaType = "application/problem+json",
                             schema = @Schema(implementation = ProblemDetail.class)))
     ResponseEntity<Void> logout(@RequestHeader(name = "Authorization", required = false) String authorization) {
-        logoutInputPort.logout(new LogoutCommand(extractBearerToken(authorization)));
+        logoutInputPort.logout(new LogoutCommand(bearerToken(authorization)));
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
-    private String extractBearerToken(String authorization) {
+    @GetMapping(value = "/api/v1/auth/session", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Validate the current authentication session")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponse(responseCode = "200", description = "Authentication session is active")
+    @ApiResponse(
+            responseCode = "401",
+            description = "Bearer token is missing, invalid, or revoked",
+            content =
+                    @Content(
+                            mediaType = "application/problem+json",
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    ResponseEntity<SessionValidationResponse> validateSession(
+            @RequestHeader(name = "Authorization", required = false) String authorization) {
+        var result = validateSessionInputPort.validate(new ValidateSessionCommand(bearerToken(authorization)));
+        return ResponseEntity.ok(SessionValidationResponse.from(result));
+    }
+
+    private String bearerToken(String authorization) {
         if (authorization == null
                 || !authorization.startsWith(BEARER_PREFIX)
                 || authorization.substring(BEARER_PREFIX.length()).isBlank()) {
