@@ -79,6 +79,12 @@ class AuthServiceApplicationIT {
                         .path("responses")
                         .has("204"))
                 .isTrue();
+        assertThat(document.path("paths")
+                        .path("/api/v1/auth/session")
+                        .path("get")
+                        .path("responses")
+                        .has("200"))
+                .isTrue();
     }
 
     private HttpResponse<String> get(String path) throws Exception {

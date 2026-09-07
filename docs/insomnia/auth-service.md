@@ -27,6 +27,15 @@ Content-Type: application/json
 
 Expected response: `200 OK` with `accessToken`, `tokenType`, `sessionId`, and `expiresAt`. Copy the returned access token to `auth_access_token` for the logout request. The decoded JWT contains signed `sub`, `sid`, `active`, `iss`, `iat`, and `exp` claims, plus the configured space-delimited `scope` claim when scopes are configured; `active` is `true` when issued and `sid` matches `sessionId`. Current authorization still requires the server-side session to remain active.
 
+## Session validation
+
+```http
+GET {{ auth_base_url }}/api/v1/auth/session
+Authorization: Bearer {{ auth_access_token }}
+```
+
+Expected response: `200 OK` with the authenticated `username` and `sessionId`. Validation checks both the signed token and the authoritative PostgreSQL session state. A token revoked by logout or a later `REVOKE_PREVIOUS` login returns the existing RFC 7807 `401` authentication failure.
+
 ## Logout
 
 ```http

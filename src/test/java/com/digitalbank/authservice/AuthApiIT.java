@@ -64,6 +64,38 @@ class AuthApiIT {
     }
 
     @Test
+    void sessionValidationReturnsActiveSessionAndRejectsRevokedPriorToken() throws Exception {
+        var firstLogin = postJson(
+                "/api/v1/auth/login", "{\"username\":\"alice@example.com\",\"password\":\"correct-password\"}");
+        var firstBody = objectMapper.readTree(firstLogin.body());
+        var firstToken = firstBody.path("accessToken").asText();
+
+        var activeSession = getWithBearer("/api/v1/auth/session", firstToken);
+        var activeBody = objectMapper.readTree(activeSession.body());
+
+        assertThat(activeSession.statusCode()).isEqualTo(200);
+        assertThat(activeBody.path("username").asText()).isEqualTo("alice@example.com");
+        assertThat(activeBody.path("sessionId").asText())
+                .isEqualTo(firstBody.path("sessionId").asText());
+
+        var secondLogin = postJson(
+                "/api/v1/auth/login", "{\"username\":\"alice@example.com\",\"password\":\"correct-password\"}");
+        var secondToken =
+                objectMapper.readTree(secondLogin.body()).path("accessToken").asText();
+
+        var revokedPriorSession = getWithBearer("/api/v1/auth/session", firstToken);
+        var currentSession = getWithBearer("/api/v1/auth/session", secondToken);
+
+        assertThat(revokedPriorSession.statusCode()).isEqualTo(401);
+        assertThat(objectMapper
+                        .readTree(revokedPriorSession.body())
+                        .path("type")
+                        .asText())
+                .isEqualTo("https://digital-bank-java.local/problems/authentication-failed");
+        assertThat(currentSession.statusCode()).isEqualTo(200);
+    }
+
+    @Test
     void unknownAndWrongPasswordReturnSameUnauthorizedProblem() throws Exception {
         var unknown = postJson(
                 "/api/v1/auth/login", "{\"username\":\"unknown@example.com\",\"password\":\"correct-password\"}");
@@ -125,6 +157,15 @@ class AuthApiIT {
                 .uri(URI.create("http://localhost:" + port + path))
                 .header("Authorization", "Bearer " + token)
                 .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> getWithBearer(String path, String token) throws Exception {
+        var request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + path))
+                .header("Authorization", "Bearer " + token)
+                .GET()
                 .build();
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }

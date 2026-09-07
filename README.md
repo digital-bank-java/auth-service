@@ -12,6 +12,7 @@ This slice provides an internal, bounded authentication foundation:
 - container and Helm packaging for local Kubernetes SIT;
 - `POST /api/v1/auth/login` with validated credentials and signed JWT issuance;
 - `POST /api/v1/auth/logout` with server-side, idempotent session revocation;
+- `GET /api/v1/auth/session` with bearer-protected validation against signed JWT claims and PostgreSQL session state;
 - configurable `REVOKE_PREVIOUS` or `ALLOW_MULTIPLE` session policy, defaulting conservatively to `REVOKE_PREVIOUS`;
 - PostgreSQL-backed session persistence with Flyway migrations, durable token lookup, and replica-safe same-user session policy;
 - Maven verification with Spotless, JaCoCo, Surefire, and Failsafe.
@@ -85,6 +86,7 @@ The current integration tests start the application on a random port and verify:
 
 - `/actuator/health` returns `200` and `UP`;
 - `/v3/api-docs` returns the explicit service title, internal description, contract version `1.0.0`, and both auth paths;
+- session validation returns the authenticated subject and session ID only while the signed token and server-side session remain valid;
 - login returns a JWT with signed `sub`, `sid`, `active`, `iss`, `iat`, and `exp` claims, plus the configured space-delimited `scope` claim when scopes are configured;
 - logout revokes the session server-side and is idempotent;
 - Flyway creates the session table, and concurrent `REVOKE_PREVIOUS` opens leave only one session active.
@@ -139,7 +141,16 @@ Authorization: Bearer <access-token>
 
 Logout returns `204 No Content`. Repeating the request with the same valid token returns `204` again. A valid token alone is not sufficient for future protected-service authorization after its session is revoked; consumers must use the session validation application port until a later gateway/service authorization slice exists.
 
-Errors use RFC 7807 `ProblemDetail`: validation failures are `400` with `type` ending in `validation-error`; invalid credentials are `401` with `type` ending in `authentication-failed`; malformed, missing, expired, or revoked bearer tokens are `401` with `type` ending in `invalid-token`.
+### Session validation
+
+```http
+GET /api/v1/auth/session
+Authorization: Bearer <access-token>
+```
+
+An active session returns `200 OK` with `username` and `sessionId`. The endpoint checks the signed JWT and authoritative PostgreSQL session state, so a token from a later `REVOKE_PREVIOUS` login or logout returns the existing RFC 7807 `401` authentication failure. This endpoint is service-local and does not add an API Gateway route.
+
+Errors use RFC 7807 `ProblemDetail`: validation failures are `400` with `type` ending in `validation-error`; invalid credentials and revoked session state during validation are `401` with `type` ending in `authentication-failed`; malformed, missing, or expired bearer tokens are `401` with `type` ending in `invalid-token`.
 
 ## Container
 
