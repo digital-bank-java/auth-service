@@ -10,6 +10,7 @@ import java.time.Clock;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
 @Configuration
 @EnableConfigurationProperties({AuthSessionProperties.class, AuthJwtProperties.class, FixtureIdentityProperties.class})
@@ -31,6 +32,7 @@ public class AuthConfiguration {
     }
 
     @Bean
+    @Profile({"sit", "test", "local"})
     CredentialStore credentialStore(FixtureIdentityProperties properties) {
         return new FixtureCredentialStore(properties);
     }
