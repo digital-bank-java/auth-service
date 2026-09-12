@@ -3,6 +3,7 @@ package com.digitalbank.authservice.configuration;
 import java.util.Base64;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 @ConfigurationProperties(prefix = "auth.jwt")
 public record AuthJwtProperties(
@@ -20,6 +21,7 @@ public record AuthJwtProperties(
         this(secret, issuer, scopes, TEST_AUDIENCES, "user-access");
     }
 
+    @ConstructorBinding
     public AuthJwtProperties {
         if (secret == null || secret.isBlank()) {
             throw new IllegalArgumentException("auth.jwt.secret must be configured");
