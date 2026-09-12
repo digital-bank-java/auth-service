@@ -34,6 +34,8 @@ public class JjwtTokenAdapter implements JwtTokenPort {
                 .subject(subject)
                 .claim("sid", session.id().value().toString())
                 .claim("active", true)
+                .claim("aud", properties.audiences())
+                .claim("token_purpose", properties.tokenPurpose())
                 .issuer(properties.issuer())
                 .issuedAt(Date.from(session.createdAt()))
                 .expiration(Date.from(session.expiresAt()));
@@ -58,12 +60,17 @@ public class JjwtTokenAdapter implements JwtTokenPort {
             var expiresAt = claims.getExpiration();
             var active = claims.get("active", Boolean.class);
             var scopes = parseScopes(claims.get("scope", String.class));
+            var audiences = claims.getAudience();
+            var tokenPurpose = claims.get("token_purpose", String.class);
             if (subject == null
                     || subject.isBlank()
                     || sessionId == null
                     || issuedAt == null
                     || expiresAt == null
-                    || active == null) {
+                    || active == null
+                    || audiences == null
+                    || audiences.stream().noneMatch(properties.audiences()::contains)
+                    || !properties.tokenPurpose().equals(tokenPurpose)) {
                 throw new InvalidTokenException();
             }
             return new JwtClaims(

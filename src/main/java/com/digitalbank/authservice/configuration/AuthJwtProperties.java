@@ -5,7 +5,21 @@ import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "auth.jwt")
-public record AuthJwtProperties(String secret, String issuer, List<String> scopes) {
+public record AuthJwtProperties(
+        String secret, String issuer, List<String> scopes, List<String> audiences, String tokenPurpose) {
+    private static final List<String> TEST_AUDIENCES = List.of(
+            "api-gateway",
+            "customer-service",
+            "account-service",
+            "ledger-service",
+            "transaction-service",
+            "payment-service",
+            "mfa-service");
+
+    public AuthJwtProperties(String secret, String issuer, List<String> scopes) {
+        this(secret, issuer, scopes, TEST_AUDIENCES, "user-access");
+    }
+
     public AuthJwtProperties {
         if (secret == null || secret.isBlank()) {
             throw new IllegalArgumentException("auth.jwt.secret must be configured");
@@ -28,5 +42,19 @@ public record AuthJwtProperties(String secret, String issuer, List<String> scope
                         .filter(value -> !value.isBlank())
                         .distinct()
                         .toList();
+        audiences = audiences == null
+                ? List.of()
+                : audiences.stream()
+                        .map(String::trim)
+                        .filter(value -> !value.isBlank())
+                        .distinct()
+                        .toList();
+        if (audiences.isEmpty()) {
+            throw new IllegalArgumentException("auth.jwt.audiences must contain at least one audience");
+        }
+        if (tokenPurpose == null || tokenPurpose.isBlank()) {
+            throw new IllegalArgumentException("auth.jwt.token-purpose must be configured");
+        }
+        tokenPurpose = tokenPurpose.trim();
     }
 }

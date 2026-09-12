@@ -84,5 +84,15 @@ class JjwtTokenAdapterTest {
                 .getPayload();
 
         assertThat(claims.get("scope", String.class)).isEqualTo("mfa.internal payment.internal");
+        assertThat(claims.getAudience())
+                .containsExactly(
+                        "api-gateway",
+                        "customer-service",
+                        "account-service",
+                        "ledger-service",
+                        "transaction-service",
+                        "payment-service",
+                        "mfa-service");
+        assertThat(claims.get("token_purpose", String.class)).isEqualTo("user-access");
     }
 }
